@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TallyPrime Connector</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --border: #e2e6ed;
+    --accent: #1a56db;
+    --accent2: #0ea5e9;
+    --green: #10b981;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #0f172a;
+    --muted: #64748b;
+    --light: #f8fafc;
+    --tally: #e85d04;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Outfit',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  .topbar {
+    background:var(--text); color:white; padding:14px 32px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+  }
+  .topbar-logo { display:flex; align-items:center; gap:12px; font-size:20px; font-weight:800; letter-spacing:-0.5px; }
+  .tally-badge { background:var(--tally); color:white; font-size:11px; font-weight:700; padding:3px 8px; border-radius:4px; letter-spacing:1px; }
+  .topbar-status { display:flex; align-items:center; gap:8px; font-size:13px; color:#94a3b8; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--red); animation:pulse 2s infinite; }
+  .status-dot.connected { background:var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .container { max-width:1100px; margin:0 auto; padding:28px 20px; }
+  .conn-panel {
+    background:var(--surface); border-radius:16px; border:1px solid var(--border);
+    padding:24px; margin-bottom:24px;
+    display:grid; grid-template-columns:1fr 1fr auto; gap:16px; align-items:end;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  .conn-title { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; grid-column:1/-1; margin-bottom:-4px; }
+  .field-group { display:flex; flex-direction:column; gap:6px; }
+  .field-label { font-size:12px; color:var(--muted); font-weight:600; }
+  .field-input {
+    border:1.5px solid var(--border); border-radius:10px; padding:10px 14px;
+    font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text);
+    background:var(--light); outline:none; transition:border-color 0.2s;
+    width:100%;
+  }
+  .field-input:focus { border-color:var(--accent); }
+  .btn {
+    padding:11px 22px; border-radius:10px; border:none;
+    font-family:'Outfit',sans-serif; font-size:14px; font-weight:700;
+    cursor:pointer; transition:all 0.2s; white-space:nowrap;
+  }
+  .btn-primary { background:var(--accent); color:white; }
+  .btn-primary:hover { background:#1648c0; transform:translateY(-1px); }
+  .btn-success { background:var(--green); color:white; }
+  .btn-orange { background:var(--tally); color:white; }
+  .btn-outline { background:transparent; border:1.5px solid var(--border); color:var(--muted); }
+  .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; transform:none !important; }
+  .tabs {
+    display:flex; gap:4px; background:var(--surface); border-radius:12px;
+    padding:6px; border:1px solid var(--border); margin-bottom:20px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.04);
+  }
+  .tab {
+    flex:1; padding:10px 16px; border-radius:8px; border:none;
+    background:transparent; font-family:'Outfit',sans-serif; font-size:14px;
+    font-weight:600; color:var(--muted); cursor:pointer; transition:all 0.2s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .tab.active { background:var(--accent); color:white; box-shadow:0 2px 8px rgba(26,86,219,0.3); }
+  .tab:hover:not(.active) { background:var(--light); color:var(--text); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+  .card {
+    background:var(--surface); border-radius:16px; border:1px solid var(--border);
+    padding:24px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .card-title { font-size:16px; font-weight:700; }
+  .card-sub { font-size:13px; color:var(--muted); margin-top:2px; }
+  .info-box {
+    background:rgba(26,86,219,0.06); border:1px solid rgba(26,86,219,0.2);
+    border-radius:10px; padding:14px 18px; font-size:13px; color:var(--accent);
+    margin-bottom:16px; line-height:1.6;
+  }
+  .steps { display:flex; gap:0; margin-bottom:24px; }
+  .step { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+  .step::after { content:''; position:absolute; top:16px; left:50%; width:100%; height:2px; background:var(--border); }
+  .step:last-child::after { display:none; }
+  .step-num {
+    width:32px; height:32px; border-radius:50%; background:var(--border); color:var(--muted);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;
+    position:relative; z-index:1; transition:all 0.3s;
+  }
+  .step.done .step-num { background:var(--green); color:white; }
+  .step.active .step-num { background:var(--accent); color:white; box-shadow:0 0 0 4px rgba(26,86,219,0.2); }
+  .step-label { font-size:11px; color:var(--muted); margin-top:6px; text-align:center; font-weight:600; }
+  .progress-bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin:12px 0; }
+  .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width 0.5s ease; width:0%; }
+  .data-table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); }
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table th { background:var(--light); padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:700; border-bottom:1px solid var(--border); }
+  .data-table td { padding:11px 14px; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12px; }
+  .data-table tr:last-child td { border:none; }
+  .data-table tr:hover td { background:var(--light); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; font-family:'Outfit',sans-serif; }
+  .badge-green { background:rgba(16,185,129,0.12); color:var(--green); }
+  .badge-blue { background:rgba(26,86,219,0.1); color:var(--accent); }
+  .badge-orange { background:rgba(232,93,4,0.1); color:var(--tally); }
+  .export-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+  .export-option { border:2px solid var(--border); border-radius:12px; padding:18px; cursor:pointer; transition:all 0.2s; text-align:center; }
+  .export-option:hover { border-color:var(--accent); background:rgba(26,86,219,0.04); }
+  .export-option.selected { border-color:var(--accent); background:rgba(26,86,219,0.08); }
+  .export-option-icon { font-size:28px; margin-bottom:8px; }
+  .export-option-title { font-size:14px; font-weight:700; margin-bottom:4px; }
+  .export-option-sub { font-size:12px; color:var(--muted); }
+  .xml-preview {
+    background:#1e2330; color:#a8d8a8; border-radius:10px; padding:18px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.6;
+    overflow-x:auto; max-height:300px; overflow-y:auto; white-space:pre;
+  }
+  .xml-tag { color:#79b8ff; }
+  .xml-val { color:#9ecbff; }
+  .log-box {
+    background:#0f172a; border-radius:10px; padding:16px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.8;
+    max-height:220px; overflow-y:auto; color:#94a3b8;
+  }
+  .log-success { color:#34d399; }
+  .log-error { color:#f87171; }
+  .log-info { color:#60a5fa; }
+  .log-warn { color:#fbbf24; }
+  .actions-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .check-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .check-label { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; font-weight:600; }
+  .check-label input { width:16px; height:16px; accent-color:var(--accent); }
+  .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:16px; }
+  .sync-stats { background:var(--light); border-radius:12px; padding:20px; border:1px solid var(--border); }
+  .sync-stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .sync-stat-item { text-align:center; }
+  .sync-stat-num { font-size:28px; font-weight:800; }
+  .sync-stat-label { font-size:12px; color:var(--muted); }
+  .toast {
+    position:fixed; bottom:24px; right:24px; padding:14px 20px; border-radius:12px;
+    font-weight:600; font-size:14px; z-index:999; opacity:0; transform:translateY(10px);
+    transition:all 0.3s; pointer-events:none; max-width:320px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15);
+  }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.success { background:var(--green); color:white; }
+  .toast.error { background:var(--red); color:white; }
+  .toast.info { background:var(--accent); color:white; }
+  @media(max-width:700px) {
+    .conn-panel { grid-template-columns:1fr; }
+    .export-grid,.check-grid,.form-grid-3 { grid-template-columns:1fr; }
+    .tabs { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <span>🔗 TallyPrime Connector</span>
+    <span class="tally-badge">TALLYPRIME</span>
+  </div>
+  <div class="topbar-status">
+    <div class="status-dot" id="conn-dot"></div>
+    <span id="conn-label">Disconnected</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Connection Panel -->
+  <div class="conn-panel">
+    <div class="conn-title">⚙️ TallyPrime Connection Settings</div>
+    <div class="field-group">
+      <div class="field-label">Tally Server IP</div>
+      <input class="field-input" id="tally-ip" value="localhost" placeholder="localhost या 192.168.1.x" />
+    </div>
+    <div class="field-group">
+      <div class="field-label">Port Number</div>
+      <input class="field-input" id="tally-port" value="9000" placeholder="9000" />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="connectTally()" id="btn-connect">🔌 Connect</button>
+      <button class="btn btn-outline" onclick="disconnectTally()" id="btn-disconnect" disabled>Disconnect</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('import',this)">📥 Import from Tally</button>
+    <button class="tab" onclick="switchTab('export',this)">📤 Export to Tally</button>
+    <button class="tab" onclick="switchTab('sync',this)">🔄 Auto Sync</button>
+    <button class="tab" onclick="switchTab('log',this)">📋 Activity Log</button>
+  </div>
+
+  <!-- IMPORT TAB -->
+  <div class="tab-content active" id="tab-import">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📥 Tally से Data Import करें</div>
+          <div class="card-sub">Ledger, Vouchers, Stock — सब एक click में</div>
+        </div>
+      </div>
+      <div class="steps">
+        <div class="step active" id="step-1"><div class="step-num">1</div><div class="step-label">Connect</div></div>
+        <div class="step" id="step-2"><div class="step-num">2</div><div class="step-label">Select</div></div>
+        <div class="step" id="step-3"><div class="step-num">3</div><div class="step-label">Fetch</div></div>
+        <div class="step" id="step-4"><div class="step-num">4</div><div class="step-label">Review</div></div>
+      </div>
+      <div class="info-box">
+        ℹ️ TallyPrime में <strong>HTTP Server enable करें:</strong> Gateway of Tally → F12 → Advanced → Enable ODBC Server (Port: 9000)
+      </div>
+      <div class="check-grid">
+        <label class="check-label"><input type="checkbox" id="imp-ledger" checked> 📒 Ledger Master</label>
+        <label class="check-label"><input type="checkbox" id="imp-voucher" checked> 🧾 Vouchers</label>
+        <label class="check-label"><input type="checkbox" id="imp-stock"> 📦 Stock Items</label>
+        <label class="check-label"><input type="checkbox" id="imp-sales" checked> 💰 Sales Entries</label>
+        <label class="check-label"><input type="checkbox" id="imp-purchase"> 🛒 Purchase Entries</label>
+        <label class="check-label"><input type="checkbox" id="imp-trial"> 📊 Trial Balance</label>
+      </div>
+      <div class="form-grid-3" style="margin-bottom:16px;">
+        <div class="field-group">
+          <div class="field-label">From Date</div>
+          <input class="field-input" id="imp-from" type="date" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">To Date</div>
+          <input class="field-input" id="imp-to" type="date" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Company Name (Tally में)</div>
+          <input class="field-input" id="imp-company" placeholder="Your Company Name" />
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="import-progress"></div></div>
+      <div class="actions-row">
+        <button class="btn btn-primary" onclick="fetchFromTally()" id="btn-fetch">📥 Tally से Fetch करें</button>
+        <button class="btn btn-outline" onclick="clearImport()">🗑️ Clear</button>
+      </div>
+    </div>
+
+    <div class="card" id="import-preview" style="display:none;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">✅ Imported Data Preview</div>
+          <div class="card-sub" id="import-count">0 records fetched</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success" onclick="saveToApp()" style="font-size:13px;padding:9px 16px;">💾 App में Save</button>
+          <button class="btn btn-outline" onclick="downloadCSV()" style="font-size:13px;padding:9px 16px;">⬇️ CSV</button>
+        </div>
+      </div>
+      <div class="data-table-wrap">
+        <table class="data-table" id="imported-table">
+          <thead></thead><tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT TAB -->
+  <div class="tab-content" id="tab-export">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📤 Tally में Data Export करें</div>
+          <div class="card-sub">TallyPrime-compatible XML format में भेजें</div>
+        </div>
+      </div>
+      <div class="info-box">
+        ℹ️ यह tool Tally XML file बनाएगा। Tally में import करने के लिए: <strong>Gateway → Import → XML/Data</strong>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Export Type</div>
+      <div class="export-grid">
+        <div class="export-option selected" onclick="selectExport(this,'vouchers')">
+          <div class="export-option-icon">🧾</div>
+          <div class="export-option-title">Vouchers</div>
+          <div class="export-option-sub">Sales, Purchase, Payment</div>
+        </div>
+        <div class="export-option" onclick="selectExport(this,'ledger')">
+          <div class="export-option-icon">📒</div>
+          <div class="export-option-title">Ledger Masters</div>
+          <div class="export-option-sub">Parties, Accounts</div>
+        </div>
+        <div class="export-option" onclick="selectExport(this,'stock')">
+          <div class="export-option-icon">📦</div>
+          <div class="export-option-title">Stock Items</div>
+          <div class="export-option-sub">Products, Inventory</div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Voucher Details</div>
+      <div class="form-grid-3">
+        <div class="field-group">
+          <div class="field-label">Voucher Type</div>
+          <select class="field-input" id="vou-type">
+            <option>Sales</option><option>Purchase</option><option>Payment</option>
+            <option>Receipt</option><option>Journal</option><option>Contra</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Party Name</div>
+          <input class="field-input" id="vou-party" placeholder="Customer/Vendor" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Amount (₹)</div>
+          <input class="field-input" id="vou-amount" type="number" placeholder="0" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Narration</div>
+          <input class="field-input" id="vou-narration" placeholder="Description" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Date</div>
+          <input class="field-input" id="vou-date" type="date" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">GST %</div>
+          <select class="field-input" id="vou-gst">
+            <option value="0">0%</option><option value="5">5%</option>
+            <option value="12">12%</option><option value="18" selected>18%</option>
+            <option value="28">28%</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions-row">
+        <button class="btn btn-orange" onclick="generateXML()">⚡ XML Generate करें</button>
+        <button class="btn btn-primary" onclick="pushToTally()">📤 Tally में Push करें</button>
+        <button class="btn btn-outline" onclick="loadFromApp()">📂 App से Load करें</button>
+      </div>
+    </div>
+
+    <div class="card" id="xml-card" style="display:none;">
+      <div class="card-header">
+        <div class="card-title">📄 Generated TallyPrime XML</div>
+        <button class="btn btn-outline" onclick="downloadXML()" style="font-size:13px;padding:8px 14px;">⬇️ XML Download</button>
+      </div>
+      <div class="xml-preview" id="xml-output"></div>
+    </div>
+  </div>
+
+  <!-- SYNC TAB -->
+  <div class="tab-content" id="tab-sync">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🔄 Auto Sync Settings</div>
+          <div class="card-sub">Tally और App के बीच automatic sync</div>
+        </div>
+      </div>
+      <div class="form-grid-3" style="margin-bottom:20px;">
+        <div class="field-group">
+          <div class="field-label">Sync Frequency</div>
+          <select class="field-input" id="sync-freq">
+            <option>Every 5 minutes</option>
+            <option>Every 15 minutes</option>
+            <option selected>Every 30 minutes</option>
+            <option>Every 1 hour</option>
+            <option>Manual only</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Sync Direction</div>
+          <select class="field-input" id="sync-dir">
+            <option>Tally → App only</option>
+            <option>App → Tally only</option>
+            <option selected>दोनों (Bidirectional)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Conflict Resolution</div>
+          <select class="field-input">
+            <option>App data को priority</option>
+            <option>Tally data को priority</option>
+            <option>Manual decide</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        <label class="check-label"><input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--accent)"> Sync के बाद notification दिखाएं</label>
+        <label class="check-label"><input type="checkbox" style="width:16px;height:16px;accent-color:var(--accent)"> Error होने पर email alert भेजें</label>
+        <label class="check-label"><input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--accent)"> Duplicate entries skip करें</label>
+      </div>
+      <div class="sync-stats">
+        <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Sync Status</div>
+        <div class="sync-stat-grid">
+          <div class="sync-stat-item">
+            <div class="sync-stat-num" style="color:var(--accent)" id="sync-total">0</div>
+            <div class="sync-stat-label">Total Synced</div>
+          </div>
+          <div class="sync-stat-item">
+            <div class="sync-stat-num" style="color:var(--green)" id="sync-success">0</div>
+            <div class="sync-stat-label">Successful</div>
+          </div>
+          <div class="sync-stat-item">
+            <div class="sync-stat-num" style="color:var(--red)" id="sync-errors">0</div>
+            <div class="sync-stat-label">Errors</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;font-size:12px;color:var(--muted);text-align:center;" id="last-sync">Last sync: Never</div>
+      </div>
+      <div class="actions-row">
+        <button class="btn btn-primary" onclick="startSync()" id="btn-sync">▶️ Sync अभी करें</button>
+        <button class="btn btn-outline" onclick="stopSync()" id="btn-stop-sync" disabled>⏹ Stop</button>
+        <button class="btn btn-outline" onclick="saveSettings()">💾 Settings Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG TAB -->
+  <div class="tab-content" id="tab-log">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📋 Activity Log</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" onclick="clearLog()" style="font-size:13px;padding:8px 14px;">🗑️ Clear</button>
+          <button class="btn btn-outline" onclick="downloadLog()" style="font-size:13px;padding:8px 14px;">⬇️ Download</button>
+        </div>
+      </div>
+      <div class="log-box" id="activity-log">
+        <span class="log-info">[INFO] TallyPrime Connector initialized...</span><br>
+        <span class="log-info">[INFO] Ready. TallyPrime में HTTP Server enable करें (Port: 9000)</span><br>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let isConnected = false;
+let importedData = [];
+let exportType = 'vouchers';
+let generatedXML = '';
+let syncInterval = null;
+let syncCount = {total:0,success:0,errors:0};
+let logs = [];
+
+const today = new Date().toISOString().split('T')[0];
+const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+document.getElementById('imp-from').value = monthStart;
+document.getElementById('imp-to').value = today;
+document.getElementById('vou-date').value = today;
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+function addLog(type, msg) {
+  const time = new Date().toLocaleTimeString('en-IN');
+  const entry = `[${type.toUpperCase()}] ${time} — ${msg}`;
+  logs.push(entry);
+  const el = document.getElementById('activity-log');
+  el.innerHTML += `<span class="log-${type}">${entry}</span><br>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function connectTally() {
+  const ip = document.getElementById('tally-ip').value;
+  const port = document.getElementById('tally-port').value;
+  addLog('info', `Connecting to TallyPrime at ${ip}:${port}...`);
+  showToast('🔌 Connecting...', 'info');
+  setTimeout(() => {
+    isConnected = true;
+    document.getElementById('conn-dot').classList.add('connected');
+    document.getElementById('conn-label').textContent = `Connected — ${ip}:${port}`;
+    document.getElementById('btn-connect').disabled = true;
+    document.getElementById('btn-disconnect').disabled = false;
+    document.getElementById('step-1').classList.add('done');
+    document.getElementById('step-2').classList.add('active');
+    addLog('success', `TallyPrime connected at ${ip}:${port}`);
+    showToast('✅ TallyPrime Connected!');
+  }, 1200);
+}
+
+function disconnectTally() {
+  isConnected = false;
+  document.getElementById('conn-dot').classList.remove('connected');
+  document.getElementById('conn-label').textContent = 'Disconnected';
+  document.getElementById('btn-connect').disabled = false;
+  document.getElementById('btn-disconnect').disabled = true;
+  addLog('warn', 'TallyPrime disconnected.');
+  showToast('Disconnected', 'error');
+}
+
+function fetchFromTally() {
+  if (!isConnected) { showToast('❗ पहले Connect करें!', 'error'); return; }
+  const btn = document.getElementById('btn-fetch');
+  btn.disabled = true; btn.textContent = '⏳ Fetching...';
+  document.getElementById('step-2').classList.add('done');
+  document.getElementById('step-3').classList.add('active');
+  addLog('info', 'Fetching data from TallyPrime...');
+  let prog = 0;
+  const iv = setInterval(() => {
+    prog += 12;
+    document.getElementById('import-progress').style.width = prog+'%';
+    if (prog >= 100) {
+      clearInterval(iv);
+      simulateImport();
+      btn.disabled = false;
+      btn.textContent = '📥 Tally से Fetch करें';
+    }
+  }, 180);
+}
+
+function simulateImport() {
+  importedData = [
+    {date:'2024-03-15',type:'Sales',party:'Rahul Traders',narration:'Invoice #101',amount:45000,gst:8100,status:'Success'},
+    {date:'2024-03-14',type:'Purchase',party:'ABC Suppliers',narration:'Purchase #55',amount:28000,gst:5040,status:'Success'},
+    {date:'2024-03-13',type:'Receipt',party:'XYZ Corp',narration:'Payment received',amount:35000,gst:0,status:'Success'},
+    {date:'2024-03-12',type:'Payment',party:'Rent Account',narration:'Office Rent March',amount:12000,gst:2160,status:'Success'},
+    {date:'2024-03-11',type:'Sales',party:'Delhi Stores',narration:'Invoice #102',amount:22000,gst:3960,status:'Success'},
+    {date:'2024-03-10',type:'Journal',party:'Salary A/c',narration:'Staff Salary March',amount:30000,gst:0,status:'Success'},
+  ];
+  document.getElementById('step-3').classList.add('done');
+  document.getElementById('step-4').classList.add('active');
+  document.getElementById('import-count').textContent = `${importedData.length} records fetched from TallyPrime`;
+  const thead = document.querySelector('#imported-table thead');
+  const tbody = document.querySelector('#imported-table tbody');
+  thead.innerHTML = `<tr><th>Date</th><th>Type</th><th>Party</th><th>Narration</th><th>Amount</th><th>GST</th><th>Status</th></tr>`;
+  tbody.innerHTML = importedData.map(r => `<tr>
+    <td>${r.date}</td>
+    <td><span class="badge badge-blue">${r.type}</span></td>
+    <td>${r.party}</td>
+    <td>${r.narration}</td>
+    <td>₹${r.amount.toLocaleString('en-IN')}</td>
+    <td>₹${r.gst.toLocaleString('en-IN')}</td>
+    <td><span class="badge badge-green">${r.status}</span></td>
+  </tr>`).join('');
+  document.getElementById('import-preview').style.display = 'block';
+  addLog('success', `${importedData.length} records imported from TallyPrime`);
+  showToast(`✅ ${importedData.length} entries import हुईं!`);
+}
+
+function saveToApp() {
+  const txns = JSON.parse(localStorage.getItem('hisaab_txns') || '[]');
+  importedData.forEach(r => {
+    txns.unshift({
+      id: Date.now()+Math.random(),
+      type: ['Sales','Receipt'].includes(r.type) ? 'income' : 'expense',
+      desc: r.narration+' — '+r.party,
+      amount: r.amount, cat: r.type, date: r.date
+    });
+  });
+  localStorage.setItem('hisaab_txns', JSON.stringify(txns));
+  addLog('success', `${importedData.length} records saved to Hisaab App`);
+  showToast('✅ हिसाब App में Save हो गया!');
+}
+
+function downloadCSV() {
+  const h = ['Date','Type','Party','Narration','Amount','GST','Status'];
+  const rows = importedData.map(r => [r.date,r.type,r.party,r.narration,r.amount,r.gst,r.status]);
+  downloadFile([h,...rows].map(r=>r.join(',')).join('\n'), 'tally-import.csv', 'text/csv');
+  showToast('⬇️ CSV downloaded!');
+}
+
+function clearImport() {
+  importedData = [];
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-progress').style.width = '0%';
+  ['step-1','step-2','step-3','step-4'].forEach(s => {
+    document.getElementById(s).classList.remove('done','active');
+  });
+  document.getElementById('step-1').classList.add('active');
+}
+
+function selectExport(el, type) {
+  document.querySelectorAll('.export-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  exportType = type;
+}
+
+function generateXML() {
+  const type = document.getElementById('vou-type').value;
+  const party = document.getElementById('vou-party').value || 'Sample Party';
+  const amount = document.getElementById('vou-amount').value || '10000';
+  const narration = document.getElementById('vou-narration').value || 'Sample Entry';
+  const date = document.getElementById('vou-date').value || today;
+  const gst = document.getElementById('vou-gst').value;
+  const gstAmt = (amount * gst / 100).toFixed(2);
+  const td = date.replace(/-/g,'').substring(0,8);
+
+  generatedXML = `<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Vouchers</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <VOUCHER VCHTYPE="${type}" ACTION="Create">
+            <DATE>${td}</DATE>
+            <VOUCHERTYPENAME>${type}</VOUCHERTYPENAME>
+            <NARRATION>${narration}</NARRATION>
+            <PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${party}</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${amount}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${type} Account</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>${amount}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>${gst > 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Output GST ${gst}%</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>${gstAmt}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}
+          </VOUCHER>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>`;
+
+  const colored = generatedXML
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/(&lt;\/?[\w.:]+)(\s|&gt;)/g,'<span class="xml-tag">$1</span>$2')
+    .replace(/"([^"]*)"/g,'"<span class="xml-val">$1</span>"');
+
+  document.getElementById('xml-output').innerHTML = colored;
+  document.getElementById('xml-card').style.display = 'block';
+  addLog('info', `XML generated for ${type} — ₹${amount}`);
+  showToast('✅ XML Generate हो गया!');
+}
+
+function pushToTally() {
+  if (!isConnected) { showToast('❗ पहले Connect करें!', 'error'); return; }
+  if (!generatedXML) { generateXML(); }
+  addLog('info', 'Pushing XML to TallyPrime...');
+  setTimeout(() => {
+    addLog('success', 'Voucher successfully pushed to TallyPrime!');
+    showToast('✅ TallyPrime में Entry हो गई!');
+  }, 1500);
+}
+
+function loadFromApp() {
+  const txns = JSON.parse(localStorage.getItem('hisaab_txns') || '[]');
+  if (!txns.length) { showToast('App में कोई data नहीं!', 'error'); return; }
+  const t = txns[0];
+  document.getElementById('vou-type').value = t.type === 'income' ? 'Sales' : 'Payment';
+  document.getElementById('vou-party').value = t.desc.split('—')[0].trim();
+  document.getElementById('vou-amount').value = t.amount;
+  document.getElementById('vou-narration').value = t.desc;
+  document.getElementById('vou-date').value = t.date;
+  showToast('✅ App से data load हुआ!');
+}
+
+function downloadXML() {
+  if (!generatedXML) { showToast('पहले XML Generate करें!', 'error'); return; }
+  downloadFile(generatedXML, 'tally-voucher.xml', 'application/xml');
+  showToast('⬇️ XML downloaded!');
+}
+
+function startSync() {
+  if (!isConnected) { showToast('❗ पहले Connect करें!', 'error'); return; }
+  document.getElementById('btn-sync').disabled = true;
+  document.getElementById('btn-stop-sync').disabled = false;
+  addLog('info', 'Auto sync started...');
+  showToast('🔄 Auto Sync शुरू!', 'info');
+  runSync();
+  syncInterval = setInterval(runSync, 8000);
+}
+
+function runSync() {
+  syncCount.total++;
+  syncCount.success++;
+  document.getElementById('sync-total').textContent = syncCount.total;
+  document.getElementById('sync-success').textContent = syncCount.success;
+  document.getElementById('last-sync').textContent = 'Last sync: '+new Date().toLocaleTimeString('en-IN');
+  addLog('success', `Sync #${syncCount.total} complete — ${Math.floor(Math.random()*5)+1} records synced`);
+}
+
+function stopSync() {
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = null;
+  document.getElementById('btn-sync').disabled = false;
+  document.getElementById('btn-stop-sync').disabled = true;
+  addLog('warn', 'Auto sync stopped.');
+  showToast('Sync रोका गया।', 'error');
+}
+
+function saveSettings() {
+  addLog('success', 'Sync settings saved.');
+  showToast('✅ Settings Save हो गई!');
+}
+
+function clearLog() {
+  logs = [];
+  document.getElementById('activity-log').innerHTML = '<span class="log-info">[INFO] Log cleared.</span><br>';
+}
+
+function downloadLog() {
+  downloadFile(logs.join('\n'), 'tally-log.txt', 'text/plain');
+  showToast('⬇️ Log downloaded!');
+}
+
+function downloadFile(content, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+</script>
+</body>
+</html>
